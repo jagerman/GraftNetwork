@@ -1027,11 +1027,10 @@ namespace nodetool
           post_request_to_supernodes<cryptonote::COMMAND_RPC_BROADCAST>("broadcast", arg, arg.callback_uri);
       }
 
-      int next_hop = arg.hop - 1;
-      LOG_PRINT_L0("P2P Request: handle_broadcast: notify peers " << next_hop);
-      if (next_hop >= 0)
+      if (arg.hop > 0)
       {
-          arg.hop = next_hop;
+          arg.hop--;
+          LOG_PRINT_L0("P2P Request: handle_broadcast: notify peers " << arg.hop);
           std::string buff;
           epee::serialization::store_t_to_binary(arg, buff);
           relay_notify_to_all(command, buff, context);
@@ -1072,10 +1071,9 @@ namespace nodetool
           }
       }
 
-      int next_hop = arg.hop - 1;
-      if (next_hop >= 0)
+      if (arg.hop > 0)
       {
-          arg.hop = next_hop;
+          arg.hop--;
           LOG_PRINT_L0("P2P Request: handle_multicast: notify receivers " << arg.hop);
           std::list<peerid_type> exclude_peers;
           exclude_peers.push_back(context.peer_id);
@@ -1117,10 +1115,9 @@ namespace nodetool
           }
       }
 
-      int next_hop = arg.hop - 1;
-      if (next_hop >= 0 && !local) {
-          arg.hop = next_hop;
-          LOG_PRINT_L0("P2P Request: handle_unicast: notify receiver " << next_hop);
+      if (arg.hop > 0 && !local) {
+          arg.hop--;
+          LOG_PRINT_L0("P2P Request: handle_unicast: notify receiver " << arg.hop);
           std::list<std::string> addresses;
           addresses.push_back(address);
 
