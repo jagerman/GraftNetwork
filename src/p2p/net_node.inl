@@ -952,13 +952,13 @@ namespace nodetool
       static std::string supernode_endpoint("send_supernode_announce");
       std::string supernode_str = arg.address;
 
-      if (supernode_str == m_supernode_str)
+      bool is_local;
       {
-          return 1;
+          boost::lock_guard<boost::recursive_mutex> guard(m_supernode_lock);
+          is_local = m_supernodes.count(supernode_str) > 0;
       }
-
-      LOG_PRINT_L0("P2P Request: handle_supernode_announce: update tunnels for " << arg.address << " Hop: " << arg.hop << " Address: " << arg.network_address);
-      do {
+      if (!is_local) {
+          LOG_PRINT_L0("P2P Request: handle_supernode_announce: update tunnels for " << arg.address << " Hop: " << arg.hop << " Address: " << arg.network_address);
           peerlist_entry pe;
           // TODO: Need to investigate it and mechanism for adding peer to the peerlist
           if (!m_peerlist.find_peer(context.peer_id, pe))
@@ -992,55 +992,61 @@ namespace nodetool
               route.max_hop = arg.hop;
               route.peers = peer_vec;
               m_supernode_routes[supernode_str] = route;
-              break;
           }
-
-          if ((*it).second.last_announce_time > arg.timestamp)
-          {
-              MINFO("SUPERNODE_ANNOUNCE from " << context.peer_id
-                    << " too old, corrent route timestamp " << (*it).second.last_announce_time);
-              return 1;
-          }
-
-          if ((*it).second.last_announce_time == arg.timestamp)
-          {
-              auto peer_it = std::find_if((*it).second.peers.begin(), (*it).second.peers.end(),
-                                          [pe](const peerlist_entry &p) -> bool { return pe.id == p.id; });
-              if (peer_it != (*it).second.peers.end())
+          else {
+              auto &route = it->second;
+              if (route.last_announce_time > arg.timestamp)
               {
+                  MINFO("SUPERNODE_ANNOUNCE from " << context.peer_id
+                        << " too old, corrent route timestamp " << route.last_announce_time);
                   return 1;
               }
-              if (peer_it == (*it).second.peers.end())
+
+              if (route.last_announce_time == arg.timestamp)
               {
-                  (*it).second.peers.push_back(pe);
-                  if ((*it).second.max_hop < arg.hop)
+                  auto peer_it = std::find_if(route.peers.begin(), route.peers.end(),
+                                              [pe](const peerlist_entry &p) -> bool { return pe.id == p.id; });
+                  if (peer_it == route.peers.end())
                   {
-                      (*it).second.max_hop = arg.hop;
+                      route.peers.push_back(pe);
+                      if (route.max_hop < arg.hop)
+                      {
+                          route.max_hop = arg.hop;
+                      }
                   }
                   return 1;
               }
+              route.peers.clear();
+              route.peers.push_back(pe);
+              route.last_announce_time = arg.timestamp;
+              route.max_hop = arg.hop;
           }
-          (*it).second.peers.clear();
-          (*it).second.peers.push_back(pe);
-          (*it).second.last_announce_time = arg.timestamp;
-          (*it).second.max_hop = arg.hop;
-      } while(0);
+      }
 
-      LOG_PRINT_L0("P2P Request: handle_supernode_announce: post to supernode");
-      do {
+      std::list<std::reference_wrapper<local_supernode>> post_to_sn;
+      {
+          LOG_PRINT_L0("P2P Request: handle_supernode_announce: lock");
           boost::lock_guard<boost::recursive_mutex> guard(m_supernode_lock);
-          if (m_have_supernode) {
-              post_request_to_supernode<cryptonote::COMMAND_RPC_SUPERNODE_ANNOUNCE>(supernode_endpoint, arg);
+          LOG_PRINT_L0("P2P Request: handle_supernode_announce: unlock");
+          for (auto &sn : m_supernodes) {
+              if (sn.first != arg.address)
+                  post_to_sn.push_back(std::ref(sn.second));
           }
-      } while(0);
+      }
+      for (auto &sn : post_to_sn) {
+          LOG_PRINT_L0("P2P Request: handle_supernode_announce: post to supernode");
+          post_request_to_supernode<cryptonote::COMMAND_RPC_SUPERNODE_ANNOUNCE>(sn, supernode_endpoint, arg);
+      }
 
-      // Notify neighbours about new ANNOUNCE
-      arg.hop++;
-      LOG_PRINT_L0("P2P Request: handle_supernode_announce: notify peers " << arg.hop);
-      std::string arg_buff;
-      epee::serialization::store_t_to_binary(arg, arg_buff);
-      relay_notify_to_all(command, arg_buff, context);
-      LOG_PRINT_L0("P2P Request: handle_supernode_announce: end");
+      if (!is_local) {
+          // Notify neighbours about new ANNOUNCE
+          arg.hop++;
+          LOG_PRINT_L0("P2P Request: handle_supernode_announce: notify peers " << arg.hop);
+          std::string arg_buff;
+          epee::serialization::store_t_to_binary(arg, arg_buff);
+          relay_notify_to_all(command, arg_buff, context);
+          LOG_PRINT_L0("P2P Request: handle_supernode_announce: end");
+      }
       return 1;
   }
 
@@ -1048,8 +1054,7 @@ namespace nodetool
   int node_server<t_payload_net_handler>::handle_broadcast(int command, typename COMMAND_BROADCAST::request &arg, p2p_connection_context &context)
   {
       LOG_PRINT_L0("P2P Request: handle_broadcast: start");
-      LOG_PRINT_L0("P2P Request: handle_broadcast: sender_address: " << arg.sender_address
-                   << ", our address: " << m_supernode_str);
+      LOG_PRINT_L0("P2P Request: handle_broadcast: sender_address: " << arg.sender_address);
 
 #ifdef LOCK_RTA_SENDING
     return 1;
@@ -1057,18 +1062,18 @@ namespace nodetool
 
       {
           LOG_PRINT_L0("P2P Request: handle_broadcast: lock");
-          boost::lock_guard<boost::recursive_mutex> guard(m_request_cache_lock);
+          boost::unique_lock<boost::recursive_mutex> cache_guard(m_request_cache_lock, boost::defer_lock),
+              sn_guard(m_supernode_lock, boost::defer_lock);
+          boost::lock(cache_guard, sn_guard);
           LOG_PRINT_L0("P2P Request: handle_broadcast: unlock");
           if (m_supernode_requests_cache.find(arg.message_id) == m_supernode_requests_cache.end())
           {
-              LOG_PRINT_L0("P2P Request: handle_broadcast: post to supernode " << m_supernode_str);
+              LOG_PRINT_L0("P2P Request: handle_broadcast: post to supernodes");
               m_supernode_requests_cache.insert(arg.message_id);
               int timestamp = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
               m_supernode_requests_timestamps.insert(std::make_pair(timestamp, arg.message_id));
-              if (m_have_supernode)
-              {
-                  post_request_to_supernode<cryptonote::COMMAND_RPC_BROADCAST>("broadcast", arg, arg.callback_uri);
-              }
+
+              post_request_to_supernodes<cryptonote::COMMAND_RPC_BROADCAST>("broadcast", arg, arg.callback_uri);
 
               if (arg.hop > 0)
               {
@@ -1097,43 +1102,41 @@ namespace nodetool
   {
       LOG_PRINT_L0("P2P Request: handle_multicast: start");
       LOG_PRINT_L0("P2P Request: handle_multicast: sender_address: " << arg.sender_address
-                   << ", receiver_addresses: " << boost::algorithm::join(arg.receiver_addresses, ", ")
-                   << ", our address: " << m_supernode_str);
+                   << ", receiver_addresses: " << boost::algorithm::join(arg.receiver_addresses, ", "));
 
 #ifdef LOCK_RTA_SENDING
     return 1;
 #endif
 
       std::list<std::string> addresses = arg.receiver_addresses;
+      bool forward = false;
       {
           LOG_PRINT_L0("P2P Request: handle_multicast: lock");
-          boost::lock_guard<boost::recursive_mutex> guard(m_request_cache_lock);
+          boost::unique_lock<boost::recursive_mutex> cache_guard(m_request_cache_lock, boost::defer_lock),
+              sn_guard(m_supernode_lock, boost::defer_lock);
+          boost::lock(cache_guard, sn_guard);
+
           LOG_PRINT_L0("P2P Request: handle_multicast: unlock");
           if (m_supernode_requests_cache.find(arg.message_id) == m_supernode_requests_cache.end())
           {
-              LOG_PRINT_L0("P2P Request: handle_multicast: post to supernode " << m_supernode_str);
+              LOG_PRINT_L0("P2P Request: handle_multicast: post to supernodes");
               m_supernode_requests_cache.insert(arg.message_id);
               int timestamp = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
               m_supernode_requests_timestamps.insert(std::make_pair(timestamp, arg.message_id));
-              auto it = std::find(addresses.begin(), addresses.end(), m_supernode_str);
-              if (m_have_supernode && it != addresses.end())
-              {
-                  LOG_PRINT_L0("P2P Request: handle_multicast: sending to supernode...");
-                  post_request_to_supernode<cryptonote::COMMAND_RPC_MULTICAST>("multicast", arg, arg.callback_uri);
+              for (auto it = addresses.begin(); it != addresses.end(); ) {
+                  auto snit = m_supernodes.find(*it);
+                  if (snit != m_supernodes.end()) {
+                      LOG_PRINT_L0("P2P Request: handle_multicast: posting to local supernode " << snit->first);
+                      post_request_to_supernode<cryptonote::COMMAND_RPC_MULTICAST>(snit->second, "multicast", arg, arg.callback_uri);
+                      it = addresses.erase(it);
+                  } else {
+                      ++it;
+                  }
               }
 
               if (arg.hop > 0)
               {
-                  LOG_PRINT_L0("P2P Request: handle_multicast: notify multicast from " << arg.sender_address
-                               << " to peers. Hop level: " << arg.hop);
-                  arg.hop--;
-                  std::list<peerid_type> exclude_peers;
-                  exclude_peers.push_back(context.peer_id);
-
-                  std::string buff;
-                  epee::serialization::store_t_to_binary(arg, buff);
-                  addresses.remove(m_supernode_str);
-                  multicast_send(command, buff, addresses, exclude_peers);
+                  forward = true;
               }
               else
               {
@@ -1148,6 +1151,18 @@ namespace nodetool
           LOG_PRINT_L0("P2P Request: handle_multicast: clean request cache");
           remove_old_request_cache();
       }
+      if (forward)
+      {
+          LOG_PRINT_L0("P2P Request: handle_multicast: notify multicast from " << arg.sender_address
+                       << " to peers. Hop level: " << arg.hop);
+          arg.hop--;
+          std::list<peerid_type> exclude_peers;
+          exclude_peers.push_back(context.peer_id);
+
+          std::string buff;
+          epee::serialization::store_t_to_binary(arg, buff);
+          multicast_send(command, buff, addresses, exclude_peers);
+      }
       LOG_PRINT_L0("P2P Request: handle_multicast: end");
       return 1;
   }
@@ -1157,44 +1172,35 @@ namespace nodetool
   {
       LOG_PRINT_L0("P2P Request: handle_unicast: start");
       LOG_PRINT_L0("P2P Request: handle_unicast: sender_address: " << arg.sender_address
-                   << ", receiver_address: " << arg.receiver_address
-                   << ", our address: " << m_supernode_str);
+                   << ", receiver_address: " << arg.receiver_address);
 
 #ifdef LOCK_RTA_SENDING
     return 1;
 #endif
 
       std::string address = arg.receiver_address;
+      bool forward = false;
       {
           LOG_PRINT_L0("P2P Request: handle_unicast: lock");
-          boost::lock_guard<boost::recursive_mutex> guard(m_request_cache_lock);
+          boost::unique_lock<boost::recursive_mutex> cache_guard(m_request_cache_lock, boost::defer_lock),
+              sn_guard(m_supernode_lock, boost::defer_lock);
+          boost::lock(cache_guard, sn_guard);
           LOG_PRINT_L0("P2P Request: handle_unicast: unlock");
           if (m_supernode_requests_cache.find(arg.message_id) == m_supernode_requests_cache.end())
           {
-              LOG_PRINT_L0("P2P Request: handle_unicast: post to supernode " << m_supernode_str);
+              LOG_PRINT_L0("P2P Request: handle_unicast: post to supernodes");
               m_supernode_requests_cache.insert(arg.message_id);
               int timestamp = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
               m_supernode_requests_timestamps.insert(std::make_pair(timestamp, arg.message_id));
-              if (m_have_supernode && address == m_supernode_str)
-              {
-                  LOG_PRINT_L0("P2P Request: handle_unicast: sending to supernode...");
-                  post_request_to_supernode<cryptonote::COMMAND_RPC_UNICAST>("unicast", arg, arg.callback_uri);
+              auto it = m_supernodes.find(address);
+              bool local_sn = it != m_supernodes.end();
+              if (local_sn) {
+                  LOG_PRINT_L0("P2P Request: handle_unicast: sending to local supernode " << address);
+                  post_request_to_supernode<cryptonote::COMMAND_RPC_UNICAST>(it->second, "unicast", arg, arg.callback_uri);
               }
-
-              if (address != m_supernode_str && arg.hop > 0)
+              else if (arg.hop > 0)
               {
-                  LOG_PRINT_L0("P2P Request: handle_unicast: notify unicast from " << arg.sender_address
-                               << " to " << arg.receiver_address << ". Hop level: " << arg.hop);
-                  arg.hop--;
-                  std::list<std::string> addresses;
-                  addresses.push_back(address);
-
-                  std::list<peerid_type> exclude_peers;
-                  exclude_peers.push_back(context.peer_id);
-
-                  std::string buff;
-                  epee::serialization::store_t_to_binary(arg, buff);
-                  multicast_send(command, buff, addresses, exclude_peers);
+                  forward = true;
               }
               else
               {
@@ -1208,6 +1214,22 @@ namespace nodetool
           }
           LOG_PRINT_L0("P2P Request: handle_unicast: clean request cache");
           remove_old_request_cache();
+      }
+
+      if (forward)
+      {
+          LOG_PRINT_L0("P2P Request: handle_unicast: notify unicast from " << arg.sender_address
+                       << " to " << arg.receiver_address << ". Hop level: " << arg.hop);
+          arg.hop--;
+          std::list<std::string> addresses;
+          addresses.push_back(address);
+
+          std::list<peerid_type> exclude_peers;
+          exclude_peers.push_back(context.peer_id);
+
+          std::string buff;
+          epee::serialization::store_t_to_binary(arg, buff);
+          multicast_send(command, buff, addresses, exclude_peers);
       }
       LOG_PRINT_L0("P2P Request: handle_unicast: end");
       return 1;
@@ -2265,6 +2287,14 @@ namespace nodetool
     p2p_req.network_address = req.network_address;
     p2p_req.hop = 0;
 
+    LOG_PRINT_L0("P2P Request: do_supernode_announce: announce to me");
+    {
+        LOG_PRINT_L0("P2P Request: do_supernode_announce: lock");
+        boost::unique_lock<boost::recursive_mutex> guard(m_supernode_lock);
+        LOG_PRINT_L0("P2P Request: do_supernode_announce: lock acquired");
+        post_request_to_supernodes<cryptonote::COMMAND_RPC_SUPERNODE_ANNOUNCE>("send_supernode_announce", p2p_req);
+    }
+
     LOG_PRINT_L0("P2P Request: do_supernode_announce: prepare peerlist");
     std::string blob;
     epee::serialization::store_t_to_binary(p2p_req, blob);
@@ -2320,13 +2350,10 @@ namespace nodetool
 
       LOG_PRINT_L0("P2P Request: do_broadcast: broadcast to me");
       {
-//          LOG_PRINT_L0("P2P Request: do_broadcast: lock");
-//          boost::lock_guard<boost::recursive_mutex> guard(m_supernode_lock);
-//          LOG_PRINT_L0("P2P Request: do_broadcast: unlock");
-          if (m_have_supernode)
-          {
-              post_request_to_supernode<cryptonote::COMMAND_RPC_BROADCAST>("broadcast", req, req.callback_uri);
-          }
+          LOG_PRINT_L0("P2P Request: do_broadcast: lock");
+          boost::lock_guard<boost::recursive_mutex> guard(m_supernode_lock);
+          LOG_PRINT_L0("P2P Request: do_broadcast: unlock");
+          post_request_to_supernodes<cryptonote::COMMAND_RPC_BROADCAST>("broadcast", req, req.callback_uri);
       }
 
 #ifdef LOCK_RTA_SENDING
@@ -2408,13 +2435,15 @@ namespace nodetool
       LOG_PRINT_L0("P2P Request: do_multicast: multicast to me");
       {
           LOG_PRINT_L0("P2P Request: do_multicast: lock");
-          boost::lock_guard<boost::recursive_mutex> guard(m_request_cache_lock);
+          boost::unique_lock<boost::recursive_mutex> guard(m_supernode_lock);
           LOG_PRINT_L0("P2P Request: do_multicast: unlock");
-          std::list<std::string> addresses = req.receiver_addresses;
-          auto it = std::find(addresses.begin(), addresses.end(), m_supernode_str);
-          if (m_have_supernode && it != addresses.end())
-          {
-              post_request_to_supernode<cryptonote::COMMAND_RPC_MULTICAST>("multicast", req, req.callback_uri);
+          const std::list<std::string> &addresses = req.receiver_addresses;
+          for (auto &addr : addresses) {
+              auto it = m_supernodes.find(addr);
+              if (it != m_supernodes.end()) {
+                  LOG_PRINT_L0("P2P Request: do_multicast: multicast to " << addr);
+                  post_request_to_supernode<cryptonote::COMMAND_RPC_MULTICAST>(it->second, "multicast", req, req.callback_uri);
+              }
           }
       }
 
