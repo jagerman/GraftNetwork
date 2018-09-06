@@ -202,6 +202,13 @@ namespace command_line
     return get_arg<bool, false>(vm, arg);
   }
 
+  template <typename T, bool required>
+  bool has_arg(const boost::program_options::variables_map& vm, const arg_descriptor<std::vector<T>, required>& arg)
+  {
+    auto value = vm[arg.name];
+    return !value.empty() && !value.template as<std::vector<T>>().empty();
+  }
+
 
   extern const arg_descriptor<bool> arg_help;
   extern const arg_descriptor<bool> arg_version;
