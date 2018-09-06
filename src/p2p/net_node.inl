@@ -955,46 +955,33 @@ namespace nodetool
           LOG_PRINT_L0("P2P Request: handle_supernode_announce: " << (*it2).first << " " << (*it2).second.peers.size());
       }
 
-      auto it = m_supernode_routes.find(arg.address);
-      if (it == m_supernode_routes.end())
+      auto &curr_route = m_supernode_routes[arg.address];
+      if (curr_route.peers.empty() || curr_route.last_announce_time < arg.timestamp)
       {
-          std::unordered_map<peerid_type, peerlist_entry> peer_map;
-          peer_map[pe.id] = pe;
-          nodetool::supernode_route route;
-          route.last_announce_time = arg.timestamp;
-          route.max_hop = arg.hop;
-          route.peers = peer_map;
-          m_supernode_routes[arg.address] = route;
+          LOG_PRINT_L0("P2P Request: handle_supernode_announce: adding new route (" << arg.hop << " hops) for " <<
+                  (curr_route.peers.empty() ? "previously unreachable " : "") << arg.address << " via peer " << pe.id);
+          curr_route.last_announce_time = arg.timestamp;
+          curr_route.max_hop = arg.hop;
+          curr_route.peers.clear();
+          curr_route.peers.emplace(pe.id, pe);
       }
-      else {
-          if ((*it).second.last_announce_time > arg.timestamp)
+      else if (curr_route.last_announce_time == arg.timestamp)
+      {
+          auto peer_it = curr_route.peers.find(pe.id);
+          if (peer_it == curr_route.peers.end())
           {
-              MINFO("SUPERNODE_ANNOUNCE from " << context.peer_id
-                    << " too old, corrent route timestamp " << (*it).second.last_announce_time);
-              return 1;
+              MINFO("P2P Request: handle_supernode_announce: adding additional route (" << arg.hop << " hops) for "
+                      << arg.address << " via peer " << pe.id);
+              curr_route.peers.emplace(pe.id, pe);
+              curr_route.max_hop = std::max(curr_route.max_hop, arg.hop);
           }
-
-          if ((*it).second.last_announce_time == arg.timestamp)
-          {
-              auto peer_it = (*it).second.peers.find(pe.id);
-              if (peer_it != (*it).second.peers.end())
-              {
-                  return 1;
-              }
-              if (peer_it == (*it).second.peers.end())
-              {
-                  (*it).second.peers[pe.id] = pe;
-                  if ((*it).second.max_hop < arg.hop)
-                  {
-                      (*it).second.max_hop = arg.hop;
-                  }
-                  return 1;
-              }
-          }
-          (*it).second.peers.clear();
-          (*it).second.peers[pe.id] = pe;
-          (*it).second.last_announce_time = arg.timestamp;
-          (*it).second.max_hop = arg.hop;
+          return 1;
+      }
+      else
+      {
+          MINFO("SUPERNODE_ANNOUNCE from " << context.peer_id
+                << " too old, current route timestamp " << curr_route.last_announce_time);
+          return 1;
       }
 
       // Notify neighbours about new ANNOUNCE
