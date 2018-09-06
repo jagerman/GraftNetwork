@@ -794,7 +794,7 @@ namespace nodetool
       LOG_PRINT_L0("P2P Request: multicast_send: Start tunneling");
       std::vector<peerlist_entry> tunnels;
       {
-          std::map<std::string, nodetool::supernode_route> local_supernode_routes;
+          std::unordered_map<std::string, nodetool::supernode_route> local_supernode_routes;
           {
               LOG_PRINT_L0("P2P Request: multicast_send: lock");
               boost::lock_guard<boost::recursive_mutex> guard(m_supernode_lock);
@@ -843,7 +843,7 @@ namespace nodetool
   {
       uint64_t max_hop = 0;
       {
-          std::map<std::string, nodetool::supernode_route> local_supernode_routes;
+          std::unordered_map<std::string, nodetool::supernode_route> local_supernode_routes;
           {
               LOG_PRINT_L0("P2P Request: multicast_send: lock");
               boost::lock_guard<boost::recursive_mutex> guard(m_supernode_lock);
@@ -868,7 +868,7 @@ namespace nodetool
   {
       std::list<std::string> routes;
       {
-          std::map<std::string, nodetool::supernode_route> local_supernode_routes;
+          std::unordered_map<std::string, nodetool::supernode_route> local_supernode_routes;
           {
               LOG_PRINT_L0("P2P Request: multicast_send: lock");
               boost::lock_guard<boost::recursive_mutex> guard(m_supernode_lock);
@@ -884,22 +884,36 @@ namespace nodetool
   }
 
   //-----------------------------------------------------------------------------------
+  // Attempts to add an entry to the request cache, if not already present.  Returns true if the
+  // entry was not in the cache (and thus added), false if the item was already there.  Clears old
+  // entries from the cache before returning (unless remove_old_requests is given as false).
+  template<class t_payload_net_handler>
+  bool node_server<t_payload_net_handler>::insert_request_cache(const std::string &message_id, bool remove_old_requests)
+  {
+      bool new_entry = false;
+      auto ins = m_supernode_requests_cache.insert(message_id);
+      if (ins.second) {
+          new_entry = true;
+          int64_t timestamp = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
+          m_supernode_requests_timestamps.emplace_back(timestamp, message_id);
+      }
+      if (remove_old_requests) remove_old_request_cache();
+      return new_entry;
+  }
+
+  //-----------------------------------------------------------------------------------
   template<class t_payload_net_handler>
   void node_server<t_payload_net_handler>::remove_old_request_cache()
   {
-      int timestamp = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
-      for (auto it = m_supernode_requests_timestamps.begin(); it != m_supernode_requests_timestamps.end();)
+      int64_t timestamp = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
+      auto expire_to = std::find_if(m_supernode_requests_timestamps.begin(), m_supernode_requests_timestamps.end(),
+              [&](const std::pair<int64_t, std::string> &v) { return v.first >= timestamp; });
+
+      for (auto it = m_supernode_requests_timestamps.begin(); it != expire_to; ++it)
       {
-          if ((*it).first + REQUEST_CACHE_TIME < timestamp)
-          {
-              m_supernode_requests_cache.erase((*it).second);
-              it = m_supernode_requests_timestamps.erase(it);
-          }
-          else
-          {
-              break;
-          }
+          m_supernode_requests_cache.erase(it->second);
       }
+      m_supernode_requests_timestamps.erase(m_supernode_requests_timestamps.begin(), expire_to);
   }
 
   //-----------------------------------------------------------------------------------
@@ -927,7 +941,7 @@ namespace nodetool
           {
               LOG_PRINT_L0("P2P Request: handle_supernode_announce: lock");
               boost::lock_guard<boost::recursive_mutex> guard(m_request_cache_lock);
-              LOG_PRINT_L0("P2P Request: handle_supernode_announce: unlock");
+              LOG_PRINT_L0("P2P Request: handle_supernode_announce: unlock; cleaning request cache");
               remove_old_request_cache();
           }
           LOG_PRINT_L0("P2P Request: handle_supernode_announce: lock");
@@ -1009,19 +1023,14 @@ namespace nodetool
           LOG_PRINT_L0("P2P Request: handle_broadcast: lock");
           boost::lock_guard<boost::recursive_mutex> guard(m_request_cache_lock);
           LOG_PRINT_L0("P2P Request: handle_broadcast: unlock");
-          if (m_supernode_requests_cache.find(arg.message_id) == m_supernode_requests_cache.end())
+          if (insert_request_cache(arg.message_id))
           {
               LOG_PRINT_L0("P2P Request: handle_broadcast: post to supernode");
-              m_supernode_requests_cache.insert(arg.message_id);
-              int timestamp = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
-              m_supernode_requests_timestamps.insert(std::make_pair(timestamp, arg.message_id));
               if (m_have_supernode)
               {
                   post_request_to_supernode<cryptonote::COMMAND_RPC_BROADCAST>("broadcast", arg, arg.callback_uri);
               }
           }
-          LOG_PRINT_L0("P2P Request: handle_broadcast: clean request cache");
-          remove_old_request_cache();
       }
       int next_hop = arg.hop - 1;
       LOG_PRINT_L0("P2P Request: handle_broadcast: notify peers " << next_hop);
@@ -1045,20 +1054,15 @@ namespace nodetool
           LOG_PRINT_L0("P2P Request: handle_multicast: lock");
           boost::lock_guard<boost::recursive_mutex> guard(m_request_cache_lock);
           LOG_PRINT_L0("P2P Request: handle_multicast: unlock");
-          if (m_supernode_requests_cache.find(arg.message_id) == m_supernode_requests_cache.end())
+          if (insert_request_cache(arg.message_id))
           {
               LOG_PRINT_L0("P2P Request: handle_multicast: post to supernode");
-              m_supernode_requests_cache.insert(arg.message_id);
-              int timestamp = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
-              m_supernode_requests_timestamps.insert(std::make_pair(timestamp, arg.message_id));
               auto it = std::find(addresses.begin(), addresses.end(), m_supernode_str);
               if (m_have_supernode && it != addresses.end())
               {
                   post_request_to_supernode<cryptonote::COMMAND_RPC_MULTICAST>("multicast", arg, arg.callback_uri);
               }
           }
-          LOG_PRINT_L0("P2P Request: handle_multicast: clean request cache");
-          remove_old_request_cache();
       }
       int next_hop = arg.hop - 1;
       LOG_PRINT_L0("P2P Request: handle_multicast: notify receivers " << next_hop);
@@ -1086,19 +1090,14 @@ namespace nodetool
           LOG_PRINT_L0("P2P Request: handle_unicast: lock");
           boost::lock_guard<boost::recursive_mutex> guard(m_request_cache_lock);
           LOG_PRINT_L0("P2P Request: handle_unicast: unlock");
-          if (m_supernode_requests_cache.find(arg.message_id) == m_supernode_requests_cache.end())
+          if (insert_request_cache(arg.message_id))
           {
               LOG_PRINT_L0("P2P Request: handle_unicast: post to supernode");
-              m_supernode_requests_cache.insert(arg.message_id);
-              int timestamp = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
-              m_supernode_requests_timestamps.insert(std::make_pair(timestamp, arg.message_id));
               if (m_have_supernode && address == m_supernode_str)
               {
                   post_request_to_supernode<cryptonote::COMMAND_RPC_UNICAST>("unicast", arg, arg.callback_uri);
               }
           }
-          LOG_PRINT_L0("P2P Request: handle_unicast: clean request cache");
-          remove_old_request_cache();
       }
       int next_hop = arg.hop - 1;
       LOG_PRINT_L0("P2P Request: handle_unicast: notidy receiver " << next_hop);

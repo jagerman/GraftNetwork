@@ -231,6 +231,7 @@ namespace nodetool
         return 1;
     }
 
+    bool insert_request_cache(const std::string &message_id, bool remove_old_requests = true);
     void remove_old_request_cache();
 
     //----------------- commands handlers ----------------------------------------------
@@ -414,9 +415,9 @@ namespace nodetool
       return epee::string_tools::pod_to_hex(addr);
     }
 
-    std::multimap<int, std::string> m_supernode_requests_timestamps;
-    std::set<std::string> m_supernode_requests_cache;
-    std::map<std::string, nodetool::supernode_route> m_supernode_routes;
+    std::list<std::pair<int64_t, std::string>> m_supernode_requests_timestamps;
+    std::unordered_set<std::string> m_supernode_requests_cache;
+    std::unordered_map<std::string, nodetool::supernode_route> m_supernode_routes;
     crypto::public_key m_supernode_addr;
     std::string m_supernode_str;
     bool m_have_supernode;
