@@ -1803,7 +1803,7 @@ namespace cryptonote
 ////    }
 
       // send p2p announce
-      m_p2p.supernode_set(req.address, req.network_address);
+      m_p2p.supernode_add(req.address, req.network_address);
       m_p2p.do_supernode_announce(req);
       res.status = 0;
       LOG_PRINT_L0("RPC Request: on_supernode_announce: end");
