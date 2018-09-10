@@ -82,14 +82,16 @@ namespace nodetool
         client.set_server(http_host, std::to_string(http_port), {});
     }
 
-    void update(const std::string &new_host, uint64_t new_port, const std::string &new_uri) {
+    bool update(const std::string &new_host, uint64_t new_port, const std::string &new_uri) {
         if (new_host != http_host || new_port != http_port) {
             if (client.is_connected()) client.disconnect();
             client.set_server(new_host, std::to_string(new_port), {});
             http_host = new_host;
             http_port = new_port;
             uri = new_uri;
+            return true;
         }
+        return false;
     }
 
     std::string http_host;
@@ -226,8 +228,9 @@ namespace nodetool
     std::list<std::string> get_routes();
 
     template<class request_struct>
-    int post_request_to_supernode(local_supernode &supernode, const std::string &method, const typename request_struct::request &body,
-                                  const std::string &endpoint = std::string())
+    int post_request_to_supernode(const std::shared_ptr<local_supernode> &supernode,
+                                  const std::string &method, const typename request_struct::request &body,
+                                  const std::string &endpoint = std::string()) const
     {
         boost::value_initialized<epee::json_rpc::request<typename request_struct::request> > init_req;
         epee::json_rpc::request<typename request_struct::request>& req = static_cast<epee::json_rpc::request<typename request_struct::request> &>(init_req);
@@ -242,8 +245,8 @@ namespace nodetool
             uri = endpoint;
         }
         typename request_struct::response resp = AUTO_VAL_INIT(resp);
-        bool r = epee::net_utils::invoke_http_json(supernode.uri + uri,
-                                                   req, resp, supernode.client,
+        bool r = epee::net_utils::invoke_http_json(supernode->uri + uri,
+                                                   req, resp, supernode->client,
                                                    std::chrono::milliseconds(1*1000), "POST");
         if (!r || resp.status == 0)
         {
@@ -252,15 +255,7 @@ namespace nodetool
         return 1;
     }
 
-    template<class request_struct>
-    int post_request_to_supernodes(const std::string &method, const typename request_struct::request &body,
-                                   const std::string &endpoint = std::string())
-    {
-        int ret = 0;
-        for (auto &supernode : m_supernodes)
-            ret += post_request_to_supernode<request_struct>(supernode.second, method, body, endpoint);
-        return ret;
-    }
+    std::vector<std::shared_ptr<local_supernode>> get_local_supernodes(const std::string &skip = "") const;
 
     bool insert_request_cache(const std::string &message_id, bool remove_old_requests = true);
     void remove_old_request_cache();
@@ -408,6 +403,7 @@ namespace nodetool
       epee::net_utils::connection_basic::set_save_graph(save_graph);
     }
 
+    // Adds a local supernode; if already present, updates (if necessary) its uri
     void supernode_add(const std::string& addr, const std::string& url)
     {
         epee::net_utils::http::url_content parsed{};
@@ -415,15 +411,19 @@ namespace nodetool
         boost::lock_guard<boost::recursive_mutex> guard(m_supernode_lock);
         auto it = m_supernodes.find(addr);
         if (!ret) {
-            if (it != m_supernodes.end()) m_supernodes.erase(it);
+            if (it != m_supernodes.end()) {
+                LOG_PRINT_L0("Local supernode " << addr << " updated with invalid url '" << url << "'; removing it");
+                m_supernodes.erase(it);
+            } else {
+                LOG_PRINT_L0("Failed to add local supernode " << addr << ": invalid url '" << url << "'");
+            }
             return;
         } else if (it == m_supernodes.end()) {
             LOG_PRINT_L0("Adding supernode " << addr << " at " << parsed.host << ":" << parsed.port);
-            m_supernodes.emplace(std::piecewise_construct,
-                    std::forward_as_tuple(addr),
-                    std::forward_as_tuple(std::move(parsed.host), parsed.port, std::move(parsed.uri)));
+            m_supernodes.emplace(addr, std::make_shared<local_supernode>(std::move(parsed.host), parsed.port, std::move(parsed.uri)));
         } else {
-            it->second.update(parsed.host, parsed.port, parsed.uri);
+            if (it->second->update(parsed.host, parsed.port, parsed.uri))
+                LOG_PRINT_L0("Updated supernode " << addr << " address to " << parsed.host << ":" << parsed.port);
         }
     }
 
@@ -449,7 +449,7 @@ namespace nodetool
     std::list<std::pair<int64_t, std::string>> m_supernode_requests_timestamps;
     std::unordered_set<std::string> m_supernode_requests_cache;
     std::unordered_map<std::string, nodetool::supernode_route> m_supernode_routes;
-    std::unordered_map<std::string, local_supernode> m_supernodes;
+    std::unordered_map<std::string, std::shared_ptr<local_supernode>> m_supernodes;
     boost::recursive_mutex m_supernode_lock;
     boost::recursive_mutex m_request_cache_lock;
 
