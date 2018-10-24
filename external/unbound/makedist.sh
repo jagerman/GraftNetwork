@@ -241,7 +241,7 @@ if [ "$DOWIN" = "yes" ]; then
 		# configure for crosscompile, without CAPI because it fails
 		# cross-compilation and it is not used anyway
 		# before 1.0.1i need --cross-compile-prefix=i686-w64-mingw32-
-		sslflags="no-asm -DOPENSSL_NO_CAPIENG mingw"
+		sslflags="no-shared no-asm -DOPENSSL_NO_CAPIENG mingw"
 		info "winssl: Configure $sslflags"
 		CC=i686-w64-mingw32-gcc AR=i686-w64-mingw32-ar RANLIB=i686-w64-mingw32-ranlib ./Configure --prefix="$sslinstall" $sslflags || error_cleanup "OpenSSL Configure failed"
 		info "winssl: make"
