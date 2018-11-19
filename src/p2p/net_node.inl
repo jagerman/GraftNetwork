@@ -2429,19 +2429,27 @@ namespace nodetool
           return;
       }
 
+      std::list<std::string> remaining_addresses;
       LOG_PRINT_L2("P2P Request: do_multicast: multicast to me");
       {
           LOG_PRINT_L3("P2P Request: do_multicast: lock");
           boost::unique_lock<boost::recursive_mutex> guard(m_supernode_lock);
           LOG_PRINT_L3("P2P Request: do_multicast: unlock");
-          const std::list<std::string> &addresses = req.receiver_addresses;
-          for (auto &addr : addresses) {
+          for (auto &addr : req.receiver_addresses) {
               auto it = m_supernodes.find(addr);
               if (it != m_supernodes.end()) {
                   LOG_PRINT_L2("P2P Request: do_multicast: multicast to " << addr);
                   post_request_to_supernode<cryptonote::COMMAND_RPC_MULTICAST>(it->second, "multicast", req, req.callback_uri);
               }
+              else {
+                  remaining_addresses.push_back(addr);
+              }
           }
+      }
+
+      if (remaining_addresses.empty()) {
+          LOG_PRINT_L2("P2P Request: do_multicast: End (all multicast recipients were local)");
+          return;
       }
 
 #ifdef LOCK_RTA_SENDING
@@ -2449,7 +2457,7 @@ namespace nodetool
 #endif
 
       COMMAND_MULTICAST::request p2p_req = AUTO_VAL_INIT(p2p_req);
-      p2p_req.receiver_addresses = req.receiver_addresses;
+      p2p_req.receiver_addresses = remaining_addresses;
       p2p_req.sender_address = req.sender_address;
       p2p_req.callback_uri = req.callback_uri;
       p2p_req.data = req.data;
@@ -2498,6 +2506,21 @@ namespace nodetool
       {
           LOG_ERROR("RTA Unicast: wrong data format for hashing!");
           return;
+      }
+
+      LOG_PRINT_L2("P2P Request: do_unicast: checking unicast to me");
+      {
+          LOG_PRINT_L3("P2P Request: do_unicast: lock");
+          boost::unique_lock<boost::recursive_mutex> guard(m_supernode_lock);
+          LOG_PRINT_L3("P2P Request: do_unicast: unlock");
+          const std::string &addr = req.receiver_address;
+          auto it = m_supernodes.find(addr);
+          if (it != m_supernodes.end()) {
+              LOG_PRINT_L2("P2P Request: do_unicast: unicast to local supernode " << addr);
+              post_request_to_supernode<cryptonote::COMMAND_RPC_UNICAST>(it->second, "unicast", req, req.callback_uri);
+              LOG_PRINT_L2("P2P request: do_unicast: End (unicast recipient was local)");
+              return;
+          }
       }
 
       COMMAND_UNICAST::request p2p_req = AUTO_VAL_INIT(p2p_req);
