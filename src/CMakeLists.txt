@@ -98,8 +98,8 @@ function (monero_add_library name)
   set_property(TARGET "${name}" APPEND PROPERTY COMPILE_FLAGS "-fPIC")
   set_target_properties("${name}" PROPERTIES VERSION 0)
   install(TARGETS "${name}"
-    ARCHIVE DESTINATION lib/${CMAKE_LIBRARY_ARCHITECTURE}/graft
-    LIBRARY DESTINATION lib/${CMAKE_LIBRARY_ARCHITECTURE}/graft)
+    ARCHIVE DESTINATION lib/${CMAKE_LIBRARY_ARCHITECTURE}/graft.stable
+    LIBRARY DESTINATION lib/${CMAKE_LIBRARY_ARCHITECTURE}/graft.stable)
 endfunction ()
 
 add_subdirectory(common)
