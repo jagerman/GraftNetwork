@@ -82,6 +82,7 @@ target_link_libraries(common
     cncrypto
     ${UNBOUND_LIBRARY}
     ${LIBUNWIND_LIBRARIES}
+    ${Boost_CHRONO_LIBRARY}
     ${Boost_DATE_TIME_LIBRARY}
     ${Boost_FILESYSTEM_LIBRARY}
     ${Boost_SYSTEM_LIBRARY}

@@ -100,6 +100,7 @@ monero_add_library(supernode
 target_link_libraries(supernode
     PUBLIC
     rpc
+    wallet
     common
     cryptonote_core
     mnemonics

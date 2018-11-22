@@ -66,6 +66,7 @@ target_link_libraries(blockchain_db
     ringct
     ${LMDB_LIBRARY}
     ${BDB_LIBRARY}
+    ${Boost_CHRONO_LIBRARY}
     ${Boost_FILESYSTEM_LIBRARY}
     ${Boost_THREAD_LIBRARY}
   PRIVATE

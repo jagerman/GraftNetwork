@@ -94,6 +94,7 @@ add_dependencies(blockchain_import
 set_property(TARGET blockchain_import
 	PROPERTY
 	OUTPUT_NAME "graft-blockchain-import")
+install(TARGETS blockchain_import DESTINATION bin)
 
 monero_add_executable(blockchain_export
   ${blockchain_export_sources}
@@ -116,4 +117,5 @@ add_dependencies(blockchain_export
 set_property(TARGET blockchain_export
 	PROPERTY
 	OUTPUT_NAME "graft-blockchain-export")
+install(TARGETS blockchain_export DESTINATION bin)
 

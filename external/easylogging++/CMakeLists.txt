@@ -51,6 +51,13 @@ if (BUILD_GUI_DEPS)
         set(lib_folder lib)
     endif()
     install(TARGETS easylogging
-        ARCHIVE DESTINATION ${lib_folder})
+        ARCHIVE DESTINATION ${lib_folder}
+        LIBRARY DESTINATION ${lib_folder})
 endif()
+set_property(TARGET easylogging APPEND PROPERTY COMPILE_FLAGS "-fPIC")
+
+set_target_properties(easylogging PROPERTIES VERSION 0)
+install(TARGETS easylogging
+    ARCHIVE DESTINATION lib/${CMAKE_LIBRARY_ARCHITECTURE}/graft
+    LIBRARY DESTINATION lib/${CMAKE_LIBRARY_ARCHITECTURE}/graft)
 
