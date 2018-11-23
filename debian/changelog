@@ -1,4 +1,4 @@
-graft (1.5.1-1) unstable; urgency=medium
+graft (1.5.1-1~0xenial1) xenial; urgency=medium
 
   * Initial release.
 
