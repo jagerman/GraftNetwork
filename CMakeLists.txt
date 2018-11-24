@@ -194,6 +194,10 @@ if(CMAKE_SYSTEM_NAME MATCHES "kOpenBSD.*|OpenBSD.*")
   set(OPENBSD TRUE)
 endif()
 
+set(GRAFT_BINARY_SUFFIX "" CACHE STRING "optional suffix to add to the end of compiled binaries")
+set(GRAFT_INSTALL_INCLUDE_SUBDIR "graft" CACHE STRING "directory under 'include' to install files")
+set(GRAFT_INSTALL_LIBRARY_SUBDIR "graft" CACHE STRING "directory under 'lib/<arch>' to install libraries")
+
 # TODO: check bsdi, NetBSD, to see if they need the same FreeBSD changes
 #
 # elseif(CMAKE_SYSTEM_NAME MATCHES "kNetBSD.*|NetBSD.*")
@@ -679,7 +683,7 @@ elseif(NOT MSVC)
   set(EXTRA_LIBRARIES ${RT})
 endif()
 
-list(APPEND EXTRA_LIBRARIES ${CMAKE_DL_LIBS})
+list(APPEND EXTRA_LIBRARIES ${CMAKE_DL_LIBS} ${CMAKE_THREAD_LIBS_INIT})
 
 option(USE_READLINE "Build with GNU readline support." ON)
 if(USE_READLINE)

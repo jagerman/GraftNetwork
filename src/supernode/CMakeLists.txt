@@ -65,29 +65,34 @@ set(supernode_api_headers)
 
 set(supernode_private_headers
     api/pending_transaction.h
-    healthcheckapi.h
-    graft_defines.h
-    graft_wallet2.h
-    wallet_args.h
-    wallet_errors.h
-    node_rpc_proxy.h
     AuthSample.h
     AuthSampleObject.h
+    baseclientproxy.h
     BaseRTAObject.h
     BaseRTAProcessor.h
-    baseclientproxy.h
     DAPI_RPC_Client.h
     DAPI_RPC_Server.h
+    FSN_ActualList.h
+    FSN_ServantBase.h
     FSN_Servant.h
+    FSN_Servant_Test.h
+    graft_defines.h
+    grafttxextra.h
+    graft_wallet2.h
+    healthcheckapi.h
+    node_rpc_proxy.h
+    P2P_Broadcast.h
     PosProxy.h
     PosSaleObject.h
     SubNetBroadcast.h
-    WalletPayObject.h
-    WalletProxy.h
-    P2P_Broadcast.h
     supernode_common_struct.h
     supernode_rpc_command.h
+    supernode_helpers.h
     TxPool.h
+    wallet_args.h
+    wallet_errors.h
+    WalletPayObject.h
+    WalletProxy.h
     WorkerPool.h)
 
 monero_private_headers(supernode
@@ -100,6 +105,7 @@ monero_add_library(supernode
 target_link_libraries(supernode
     PUBLIC
     rpc
+    wallet
     common
     cryptonote_core
     mnemonics
@@ -156,10 +162,12 @@ if (NOT BUILD_GUI_DEPS)
     add_dependencies(supernode_rpc_server version)
     set_property(TARGET supernode_rpc_server
         PROPERTY
-        OUTPUT_NAME "graft-supernode")
+        OUTPUT_NAME "graft-supernode${GRAFT_BINARY_SUFFIX}")
     install(TARGETS supernode_rpc_server DESTINATION bin)
 endif()
 
+monero_install_headers(supernode
+    ${supernode_private_headers} ${supernode_api_headers} ${supernode_rpc_headers} ${supernode_rpc_private_headers})
 
 # build and install libsupernode_merged only if we building for GUI
 if (BUILD_GUI_DEPS)

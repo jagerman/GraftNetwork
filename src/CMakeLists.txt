@@ -41,10 +41,15 @@ function (monero_private_headers group)
 endfunction ()
 
 function (monero_install_headers subdir)
-  install(
-    FILES       ${ARGN}
-    DESTINATION "include/${subdir}"
-    COMPONENT   development)
+  # Do this in a loop so that if someone gives a.h foo/bar.h we install a.h and foo/bar.h instead of
+  # a.h and bar.h
+  foreach (hdr ${ARGN})
+    get_filename_component(dir ${hdr} DIRECTORY)
+    install(
+      FILES       ${hdr}
+      DESTINATION "include/${GRAFT_INSTALL_INCLUDE_SUBDIR}/${subdir}/${dir}"
+      COMPONENT   development)
+  endforeach ()
 endfunction ()
 
 function (enable_stack_trace target)
@@ -94,11 +99,20 @@ function (monero_add_library name)
       FOLDER "libs")
   target_compile_definitions(${objlib}
     PRIVATE $<TARGET_PROPERTY:${name},INTERFACE_COMPILE_DEFINITIONS>)
+
+  set_property(TARGET "${name}" APPEND PROPERTY COMPILE_FLAGS "-fPIC")
+  set_target_properties("${name}" PROPERTIES VERSION 0)
+  install(TARGETS "${name}"
+    ARCHIVE DESTINATION lib/${CMAKE_LIBRARY_ARCHITECTURE}/${GRAFT_INSTALL_LIBRARY_SUBDIR}
+    LIBRARY DESTINATION lib/${CMAKE_LIBRARY_ARCHITECTURE}/${GRAFT_INSTALL_LIBRARY_SUBDIR})
 endfunction ()
+
+monero_install_headers("" cryptonote_config.h)
 
 add_subdirectory(common)
 add_subdirectory(crypto)
 add_subdirectory(ringct)
+add_subdirectory(serialization)
 add_subdirectory(cryptonote_basic)
 add_subdirectory(cryptonote_core)
 if(NOT IOS)

@@ -2,6 +2,10 @@ function (write_static_version_header hash)
   set(VERSIONTAG "${hash}")
   configure_file("src/version.h.in" "version/version.h")
   add_custom_target(version ALL)
+  install(
+    FILES       ${CMAKE_BINARY_DIR}/version/version.h
+    DESTINATION "include/${GRAFT_INSTALL_INCLUDE_SUBDIR}"
+    COMPONENT   development)
 endfunction ()
 
 file(MAKE_DIRECTORY "${CMAKE_BINARY_DIR}/version")

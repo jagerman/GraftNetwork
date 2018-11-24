@@ -68,3 +68,6 @@ target_link_libraries(daemonizer
     ${Boost_PROGRAM_OPTIONS_LIBRARY}
   PRIVATE
     ${EXTRA_LIBRARIES})
+
+monero_install_headers(daemonizer
+    ${daemonizer_private_headers} ${daemonizer_headers})

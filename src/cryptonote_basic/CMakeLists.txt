@@ -60,7 +60,7 @@ set(cryptonote_basic_private_headers
   verification_context.h)
 
 monero_private_headers(cryptonote_basic
-  ${crypto_private_headers})
+  ${cryptonode_basic_private_headers})
 monero_add_library(cryptonote_basic
   ${cryptonote_basic_sources}
   ${cryptonote_basic_headers}
@@ -69,6 +69,7 @@ target_link_libraries(cryptonote_basic
   PUBLIC
     common
     cncrypto
+    ${Boost_CHRONO_LIBRARY}
     ${Boost_DATE_TIME_LIBRARY}
     ${Boost_PROGRAM_OPTIONS_LIBRARY}
     ${Boost_SERIALIZATION_LIBRARY}
@@ -77,3 +78,6 @@ target_link_libraries(cryptonote_basic
     ${Boost_THREAD_LIBRARY}
   PRIVATE
     ${EXTRA_LIBRARIES})
+
+monero_install_headers(cryptonote_basic
+    ${cryptonote_basic_private_headers} ${cryptonote_basic_headers})

@@ -41,7 +41,7 @@ set(utils_private_headers
   )
 
 monero_private_headers(utils
-  ${crypto_private_headers})
+  ${utils_private_headers})
 monero_add_library(utils
   ${utils_sources}
   ${utils_headers}
@@ -49,6 +49,9 @@ monero_add_library(utils
 target_link_libraries(utils
   PUBLIC
     common
+    ringct
     cryptonote_basic
   PRIVATE
     ${EXTRA_LIBRARIES})
+monero_install_headers(utils
+    ${utils_private_headers} ${utils_headers})

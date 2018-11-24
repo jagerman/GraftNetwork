@@ -122,9 +122,13 @@ if (NOT BUILD_GUI_DEPS)
   add_dependencies(wallet_rpc_server version)
   set_property(TARGET wallet_rpc_server
     PROPERTY
-      OUTPUT_NAME "graft-wallet-rpc")
+      OUTPUT_NAME "graft-wallet-rpc${GRAFT_BINARY_SUFFIX}")
   install(TARGETS wallet_rpc_server DESTINATION bin)
 endif()
+
+monero_install_headers(wallet
+    ${wallet_api_headers} ${wallet_private_headers}
+    ${wallet_rpc_headers} ${wallet_rpc_private_headers})
 
 
 # build and install libwallet_merged only if we building for GUI
