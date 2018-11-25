@@ -1,3 +1,10 @@
+graft-alpha (1.3.3.alpha3-2) UNRELEASED; urgency=medium
+
+  * Remove unnecessary build deps
+  * Add dev package deps to -dev package
+
+ -- Jason Rhinelander <jason@imaginary.ca>  Sun, 25 Nov 2018 14:58:32 -0400
+
 graft-alpha (1.3.3.alpha3-1) unstable; urgency=medium
 
   * Initial release based on alpha3 plus multi-supernode patches.
