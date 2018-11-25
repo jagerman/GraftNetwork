@@ -30,7 +30,7 @@
 
 # include (${PROJECT_SOURCE_DIR}/cmake/libutils.cmake)
 
-set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
+set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${PROJECT_BINARY_DIR}/lib)
 
 set(supernode_sources
     api/pending_transaction.cpp

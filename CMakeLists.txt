@@ -107,11 +107,6 @@ endif()
 set(CMAKE_C_FLAGS_RELEASE "-DNDEBUG ${OPT_FLAGS_RELEASE}")
 set(CMAKE_CXX_FLAGS_RELEASE "-DNDEBUG ${OPT_FLAGS_RELEASE}")
 
-if(NOT DEFINED CMAKE_ROOT_SOURCE_DIR)
-# CMAKE_ROOT_SOURCE_DIR variable is required, because CMAKE_SOURCE_DIR works well for include like commands and does not for external projects
-    set(CMAKE_ROOT_SOURCE_DIR "${CMAKE_SOURCE_DIR}")
-endif()
-
 add_definitions(-DMONERO_DEFAULT_LOG_CATEGORY="cryptonode" -DCMAKE_ROOT_SOURCE_DIR="${CMAKE_ROOT_SOURCE_DIR}")
 
 if(NOT DEFINED ENABLE_SYSLOG)
@@ -130,7 +125,7 @@ if(PER_BLOCK_CHECKPOINT)
 endif()
 
 list(INSERT CMAKE_MODULE_PATH 0
-  "${CMAKE_SOURCE_DIR}/cmake")
+  "${PROJECT_SOURCE_DIR}/cmake")
 
 if (NOT DEFINED ENV{DEVELOPER_LOCAL_TOOLS})
   message(STATUS "Could not find DEVELOPER_LOCAL_TOOLS in env (not required)")
@@ -205,7 +200,7 @@ set(GRAFT_INSTALL_LIBRARY_SUBDIR "graft" CACHE STRING "directory under 'lib/<arc
 # elseif(CMAKE_SYSTEM_NAME MATCHES ".*BSDI.*")
 #   set(BSDI TRUE)
 
-include_directories(external/easylogging++ src contrib/epee/include external "${CMAKE_BINARY_DIR}/version")
+include_directories(external/easylogging++ src contrib/epee/include external "${PROJECT_BINARY_DIR}/version")
 
 if(APPLE)
   include_directories(SYSTEM /usr/include/malloc)
