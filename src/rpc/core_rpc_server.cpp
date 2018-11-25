@@ -1779,7 +1779,7 @@ namespace cryptonote
       }
 
       // send p2p announce
-      m_p2p.set_supernode(req.address, req.network_address);
+      m_p2p.add_supernode(req.address, req.network_address);
       m_p2p.do_supernode_announce(req);
       res.status = 0;
       LOG_PRINT_L0("RPC Request: on_supernode_announce: end");
@@ -1887,8 +1887,13 @@ namespace cryptonote
   bool core_rpc_server::on_get_tunnels(const COMMAND_RPC_TUNNEL_DATA::request &req, COMMAND_RPC_TUNNEL_DATA::response &res, json_rpc::error &error_resp)
   {
       LOG_PRINT_L0("RPC Request: on_get_tunnels: start");
-      res.supernode_address = m_p2p.get_supernode_address();
+      res.supernodes_addresses = m_p2p.get_supernodes_addresses();
       res.tunnels = m_p2p.get_tunnels();
+
+      // Temporary backwards compatibility (remove me along with the supernode_address member): store the first SN
+      if (res.supernodes_addresses.size() > 0)
+          res.supernode_address = res.supernodes_addresses[0];
+
       LOG_PRINT_L0("RPC Request: on_get_tunnels: end");
       return true;
   }
