@@ -34,6 +34,10 @@ if (WIN32 OR STATIC)
   add_definitions(-DMINIUPNP_STATICLIB)
 endif ()
 
+if(NOT DEFINED GRAFT_BINARY_DIR)
+  set(GRAFT_BINARY_DIR "${PROJECT_BINARY_DIR}/bin")
+endif()
+
 function (monero_private_headers group)
   source_group("${group}\\Private"
     FILES
@@ -78,7 +82,7 @@ function (monero_add_executable name)
       FOLDER "prog")
   set_property(TARGET "${name}"
     PROPERTY
-      RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin")
+      RUNTIME_OUTPUT_DIRECTORY "${GRAFT_BINARY_DIR}")
   enable_stack_trace("${name}")
 endfunction ()
 
