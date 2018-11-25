@@ -1,0 +1,33 @@
+Description: add the debian package version to the version string
+ Adds a DEBIAN_VERSION_SUFFIX cmake setting to allow appending the debian package version to the
+ built-in version string.
+Author: Jason Rhinelander <jason@imaginary.ca>
+
+---
+The information above should follow the Patch Tagging Guidelines, please
+checkout http://dep.debian.net/deps/dep3/ to learn about the format. Here
+are templates for supplementary fields that you might want to add:
+
+Origin: <vendor|upstream|other>, <url of original patch>
+Bug: <url in upstream bugtracker>
+Bug-Debian: https://bugs.debian.org/<bugnumber>
+Bug-Ubuntu: https://launchpad.net/bugs/<bugnumber>
+Forwarded: <no|not-needed|url proving that it has been forwarded>
+Reviewed-By: <name and email of someone who approved the patch>
+Last-Update: 2018-11-25
+
+--- graft-alpha-1.3.3.alpha3.orig/version.cmake
++++ graft-alpha-1.3.3.alpha3/version.cmake
+@@ -10,9 +10,11 @@ endfunction ()
+ 
+ file(MAKE_DIRECTORY "${CMAKE_BINARY_DIR}/version")
+ find_package(Git QUIET)
+-if ("" STREQUAL "")
++if ("$Format:$" STREQUAL "")
+   # We're in a tarball; use hard-coded variables.
+   write_static_version_header("release")
++elseif (DEBIAN_VERSION_SUFFIX)
++  write_static_version_header("${DEBIAN_VERSION_SUFFIX}")
+ elseif (GIT_FOUND OR Git_FOUND)
+   message(STATUS "Found Git: ${GIT_EXECUTABLE}")
+   set(extra_output)

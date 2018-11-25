@@ -1,0 +1,55 @@
+Source: graft-alpha
+Section: net
+Priority: optional
+Maintainer: Jason Rhinelander <jason@imaginary.ca>
+Build-Depends: debhelper (>= 11), cmake, g++, libboost-dev (>= 1.58), libboost-system-dev, libboost-filesystem-dev, libboost-thread-dev,
+ libboost-date-time-dev, libboost-chrono-dev, libboost-regex-dev, libboost-serialization-dev, libboost-program-options-dev,
+ libboost-locale-dev, libunbound-dev (>= 1.4.16), libminiupnpc-dev, libunwind8-dev, libssl-dev,
+ libreadline-dev, libexpat1-dev, doxygen, graphviz
+Standards-Version: 4.1.3
+Homepage: https://github.com/graft-project/GraftNetwork
+
+Package: libgraft-alpha0
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}
+Description: GRAFT network libraries (RTA alpha)
+ This package contains the common GRAFT library code used by the other GRAFT
+ RTA alpha packages.
+
+Package: graftnoded-alpha
+Architecture: any
+Depends: libgraft-alpha0 (= ${binary:Version}), ${shlibs:Depends}, ${misc:Depends}
+Suggests: graft-blockchain-tools-alpha
+Description: GRAFT node (RTA alpha)
+ This package contains the GRAFT RTA alpha P2P node, graftnoded, for
+ synchronizing and supporting the GRAFT RTA alpha blockchain.
+
+Package: graft-wallet-alpha
+Architecture: any
+Depends: libgraft-alpha0 (= ${binary:Version}), ${shlibs:Depends}, ${misc:Depends}
+Recommends: graftnoded-alpha
+Description: GRAFT command-line and RPC wallets (RTA alpha)
+ This package contains the GRAFT command-line and RPC interfaces to access a
+ wallet on the GRAFT RTA alpha blockchain.
+ .
+ graft-wallet-cli is a command-line interface to a GRAFT RTA wallet.
+ .
+ graft-wallet-rpc provides a JSON RPC interface to an GRAFT wallet and is
+ typically used by software such as pools that need to interact with a wallet.
+ .
+ Both wallets requires an graft node to work, such as the provided in the
+ graftnoded-alpha package.
+
+Package: graft-blockchain-tools-alpha
+Architecture: any
+Depends: graftnoded-alpha (= ${binary:Version}), libgraft-alpha0 (= ${binary:Version}), ${shlibs:Depends}, ${misc:Depends}
+Description: GRAFT blockchain utilities (RTA alpha)
+ This contains the graft-blockchain-* binaries for blockchain export and
+ import.
+
+Package: graft-alpha-dev
+Architecture: all
+Section: libdevel
+Depends: libgraft-alpha0 (= ${binary:Version}), ${misc:Depends}
+Description: GRAFT development files (RTA alpha)
+ This contains the headers needed to compile code that uses the graft libraries.

@@ -1,0 +1,8 @@
+Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
+Upstream-Name: GraftNetwork
+Source: https://github.com/graft-project/GraftNetwork
+
+Files: *
+Copyright: 2018 The Graft Project
+Copyright: 2014-2018 The Monero Project
+License: BSD-3-clause

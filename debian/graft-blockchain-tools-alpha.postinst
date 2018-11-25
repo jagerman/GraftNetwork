@@ -1,0 +1,8 @@
+#!/bin/sh
+
+set -e
+
+update-alternatives --install /usr/bin/graft-blockchain-export graft-blockchain-export /usr/bin/graft-blockchain-export.alpha 10
+update-alternatives --install /usr/bin/graft-blockchain-import graft-blockchain-import /usr/bin/graft-blockchain-import.alpha 10
+
+exit 0
