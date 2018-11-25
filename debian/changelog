@@ -1,7 +1,9 @@
-graft-alpha (1.3.3.alpha3-2) UNRELEASED; urgency=medium
+graft-alpha (1.3.3.alpha3.1-2) unstable; urgency=medium
 
   * Remove unnecessary build deps
   * Add dev package deps to -dev package
+  * Merge fix: sefgault on sync - dont copy p2p_connection_context
+  * Merge Recognize tmux as supporting color
 
  -- Jason Rhinelander <jason@imaginary.ca>  Sun, 25 Nov 2018 14:58:32 -0400
 
